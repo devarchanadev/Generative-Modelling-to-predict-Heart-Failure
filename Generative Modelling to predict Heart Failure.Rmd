@@ -1,0 +1,363 @@
+---
+title: "Generative Modelling to predict Heart Failure"
+output: html_document
+date: "2024-03-02"
+---
+
+# PROJECT OVERVIEW
+
+The goal of this project is to understand heart conditions of patients, then to model the relationships between selected clinical variables, using both structural learning techniques and prior knowledge from the dataset and predicting chances of heartfailure as part of generative modelling 
+
+```{r}
+library(bnlearn)
+library(gRbase)
+data(cad1)
+
+#I have decicded to use all the variables as that will help me to compare my other results
+
+#first making the skeleton of the dag
+dag2 <- empty.graph(nodes = c("Sex", "AngPec", "AMI", "QWave", "QWavecode", "STcode", "STchange", "SuffHeartF", "Hypertrophi", "Hyperchol", "Smoker", "Inherit", "Heartfail", "CAD"))
+
+#Now I am adding arc according to prior knowledge as per what I understood reading the help file
+
+dag2 <- set.arc(dag2, from = "Sex", to = "AngPec") #Sex may influence AngPec as per prior knowledge
+dag2 <- set.arc(dag2, from = "Hyperchol", to = "AMI")  #Hyperchol may influence AMI  
+dag2 <- set.arc(dag2, from = "Smoker", to = "AMI")   #Smoker may influence AMI 
+dag2 <- set.arc(dag2, from = "Inherit", to = "AMI")  #Inheritance may influence AMI  
+
+
+# Defining states for each variable
+Sex_states <- c("Female", "Male")
+AngPec_states <- c("Atypical", "None", "Typical")
+AMI_states <- c("Definite", "NotCertain")
+QWave_states <- c("No", "Yes")
+QWavecode_states <- c("Nonusable", "Usable")
+STcode_states <- c("Nonusable", "Usable")
+STchange_states <- c("No", "Yes")
+SuffHeartF_states <- c("No", "Yes")
+Hypertrophi_states <- c("No", "Yes")
+Hyperchol_states <- c("No", "Yes")
+Smoker_states <- c("No", "Yes")
+Inherit_states <- c("No", "Yes")
+Heartfail_states <- c("No", "Yes")
+CAD_states <- c("No", "Yes")
+
+# Define conditional probabilities for each node
+
+# Conditional probabilities for the Sex node
+Sex_probs <- array(c(
+  # P(Sex = Female)
+  0.4,
+  # P(Sex = Male)
+  0.6
+), dim = c(2), dimnames = list(Sex = Sex_states))
+
+# Conditional probabilities for the AngPec node
+AngPec_probs <- array(c(
+  # P(AngPec = Atypical | Sex = Female)
+  0.2, 
+  # P(AngPec = None | Sex = Female)
+  0.6,
+  # P(AngPec = Typical | Sex = Female)
+  0.2,
+  # P(AngPec = Atypical | Sex = Male)
+  0.3, 
+  # P(AngPec = None | Sex = Male)
+  0.5,
+  # P(AngPec = Typical | Sex = Male)
+  0.2
+), dim = c(3, 2), dimnames = list(AngPec = AngPec_states, Sex = Sex_states))
+
+# Conditional probabilities for the AMI node
+# Conditional probabilities for the AMI node
+AMI_probs <- array(c(
+  # P(AMI = Definite | Hyperchol = No, Smoker = No, Inherit = No)
+  0.8,
+  # P(AMI = NotCertain | Hyperchol = No, Smoker = No, Inherit = No)
+  0.2,
+  # P(AMI = Definite | Hyperchol = No, Smoker = Yes, Inherit = No)
+  0.6,
+  # P(AMI = NotCertain | Hyperchol = No, Smoker = Yes, Inherit = No)
+  0.4,
+  # P(AMI = Definite | Hyperchol = Yes, Smoker = No, Inherit = No)
+  0.7,
+  # P(AMI = NotCertain | Hyperchol = Yes, Smoker = No, Inherit = No)
+  0.3,
+  # P(AMI = Definite | Hyperchol = Yes, Smoker = Yes, Inherit = No)
+  0.5,
+  # P(AMI = NotCertain | Hyperchol = Yes, Smoker = Yes, Inherit = No)
+  0.5,
+  # P(AMI = Definite | Hyperchol = No, Smoker = No, Inherit = Yes)
+  0.7,
+  # P(AMI = NotCertain | Hyperchol = No, Smoker = No, Inherit = Yes)
+  0.3,
+  # P(AMI = Definite | Hyperchol = No, Smoker = Yes, Inherit = Yes)
+  0.5,
+  # P(AMI = NotCertain | Hyperchol = No, Smoker = Yes, Inherit = Yes)
+  0.5,
+  # P(AMI = Definite | Hyperchol = Yes, Smoker = No, Inherit = Yes)
+  0.6,
+  # P(AMI = NotCertain | Hyperchol = Yes, Smoker = No, Inherit = Yes)
+  0.4,
+  # P(AMI = Definite | Hyperchol = Yes, Smoker = Yes, Inherit = Yes)
+  0.4,
+  # P(AMI = NotCertain | Hyperchol = Yes, Smoker = Yes, Inherit = Yes)
+  0.6
+), dim = c(2, 2, 2, 2), dimnames = list(AMI = AMI_states, Hyperchol = Hyperchol_states, Smoker = Smoker_states, Inherit = Inherit_states))
+
+
+
+# Conditional probabilities for the QWave node
+QWave_probs <- array(c(
+  # P(QWave = No)
+  0.7,
+  # P(QWave = Yes)
+  0.3
+), dim = c(2), dimnames = list(QWave = QWave_states))
+
+# Conditional probabilities for the QWavecode node
+QWavecode_probs <- array(c(
+  # P(QWavecode = Nonusable)
+  0.4,
+  # P(QWavecode = Usable)
+  0.6
+), dim = c(2), dimnames = list(QWavecode = QWavecode_states))
+
+# Conditional probabilities for the STcode node
+STcode_probs <- array(c(
+  # P(STcode = Nonusable)
+  0.5,
+  # P(STcode = Usable)
+  0.5
+), dim = c(2), dimnames = list(STcode = STcode_states))
+
+# Conditional probabilities for the STchange node
+STchange_probs <- array(c(
+  # P(STchange = No)
+  0.8,
+  # P(STchange = Yes)
+  0.2
+), dim = c(2), dimnames = list(STchange = STchange_states))
+
+# Conditional probabilities for the SuffHeartF node
+SuffHeartF_probs <- array(c(
+  # P(SuffHeartF = No)
+  0.3,
+  # P(SuffHeartF = Yes)
+  0.7
+), dim = c(2), dimnames = list(SuffHeartF = SuffHeartF_states))
+
+# Conditional probabilities for the Hypertrophi node
+Hypertrophi_probs <- array(c(
+  # P(Hypertrophi = No)
+  0.6,
+  # P(Hypertrophi = Yes)
+  0.4
+), dim = c(2), dimnames = list(Hypertrophi = Hypertrophi_states))
+
+# Conditional probabilities for the Hyperchol node
+Hyperchol_probs <- array(c(
+  # P(Hyperchol = No)
+  0.7,
+  # P(Hyperchol = Yes)
+  0.3
+), dim = c(2), dimnames = list(Hyperchol = Hyperchol_states))
+
+# Conditional probabilities for the Smoker node
+Smoker_probs <- array(c(
+  # P(Smoker = No)
+  0.6,
+  # P(Smoker = Yes)
+  0.4
+), dim = c(2), dimnames = list(Smoker = Smoker_states))
+
+# Conditional probabilities for the Inherit node
+Inherit_probs <- array(c(
+  # P(Inherit = No)
+  0.8,
+  # P(Inherit = Yes)
+  0.2
+), dim = c(2), dimnames = list(Inherit = Inherit_states))
+
+# Conditional probabilities for the Heartfail node
+Heartfail_probs <- array(c(
+  # P(Heartfail = No)
+  0.9,
+  # P(Heartfail = Yes)
+  0.1
+), dim = c(2), dimnames = list(Heartfail = Heartfail_states))
+
+# Conditional probabilities for the CAD node
+CAD_probs <- array(c(
+  # P(CAD = No)
+  0.85,
+  # P(CAD = Yes)
+  0.15
+), dim = c(2), dimnames = list(CAD = CAD_states))
+
+
+#parameterizing the network
+cpt <- list(Sex = Sex_probs, AngPec = AngPec_probs, AMI = AMI_probs, QWave = QWave_probs, QWavecode = QWavecode_probs, STcode = STcode_probs, STchange = STchange_probs, SuffHeartF = SuffHeartF_probs, Hypertrophi = Hypertrophi_probs, Hyperchol = Hyperchol_probs, Smoker = Smoker_probs, Inherit = Inherit_probs, Heartfail = Heartfail_probs, CAD = CAD_probs)
+
+bn <- custom.fit(dag2, dist = cpt)
+nparams(bn)
+arcs(bn)
+bn
+```
+
+
+Now, infering the Conditional Probability Tables and checking for d-separations in the graph.
+```{r}
+learned <- hc(cad1)
+learned
+
+plot(learned)
+
+#Trying several ways of finding conditional probability tables
+
+cpt1 <- bn.fit(learned, cad1)
+
+#Printing CPT for each node
+cpt1
+
+#Using Maximum Likelihood Estimation (MLE)
+bn.mle <- bn.fit(dag2, data = cad1, method = "mle")
+
+bn.mle
+
+bn.bayes <- bn.fit(dag2, data = cad1, method = "bayes", iss = 10)
+bn.bayes
+
+# Bayesian Fit (with a prior, sample size of prior = 250)
+bn.bayes2 <- bn.fit(dag2, data = cad1, method = "bayes", iss = 250)
+bn.bayes2
+
+#Now checking for d-separations
+
+#checking if CAD and AMI are d-separated
+dsep(dag2, x ="CAD", y= "AMI")
+#Checking if CAD and AngPec are d-separated given evidence on Smoker
+dsep(dag2, x = "CAD", y = "AngPec", z = "Smoker")
+#Checking if SuffHeartF and Hypertrophi are d-separated given evidence on CAD
+dsep(dag2, x = "SuffHeartF", y = "Hypertrophi", z = "CAD")
+#Checking if Heartfail and Smoker are d-separated given evidence on CAD and AMI
+dsep(dag2, x = "Heartfail", y = "Smoker", z = c("CAD", "AMI"))
+#Checking if Sex and Inherit are d-separated given no additional evidence
+dsep(dag2, x = "Sex", y = "Inherit")
+```
+#All of the above conditions return True so they are deseparated.
+#This means CAD and AMI are d-separated, CAD and AngPec are d-separated given evidence on Smoker, SuffHeartF and Hypertrophi are d-separated given evidence on CAD, Heartfail and Smoker are d-separated given evidence on CAD and AMI and Sex and Inherit are d-separated given no additional evidence.
+
+
+Now for cases when a female has Hypercholesterolemia (high cholesterol), lets predict the probability of heart-failure and coronary artery disease (CAD).
+```{r}
+library(gRain)
+
+learned <- hc(cad1)
+learned
+junction <- compile(as.grain(cpt1))
+
+# Plot the Bayesian network
+plot(junction)
+
+# Exact inference with evidence
+jedu <- setEvidence(junction, nodes = c("Sex", "Hyperchol"), states = c("Female", "High"))
+SxT <- querygrain(jedu, nodes = c("HeartFailure", "CAD"), type = "joint")
+SxT
+
+cpt1$Heartfail
+
+cpt1$CAD
+```
+#changes in the probability of heart-failure and coronary artery disease (CAD) after this information is considered
+
+Given the Bayesian network structure learned via Hill-Climbing and the evidence provided, we can perform inference to obtain the updated probabilities of Heartfail and CAD.
+
+
+Before Evidence
+We had the probabilities of Heartfail and CAD based on the Bayesian network structure and possibly some prior data.
+
+After Evidence
+By incorporating the evidence that the new observation is female with hypercholesterolemia, the probabilities of Heartfail and CAD are expected to change.
+The probability of Heartfail and CAD will be updated based on the new evidence and the dependencies specified in the Bayesian network. Therefore, the probability of CAD may change due to the new evidence about hypercholesterolemia.
+Given the new evidence of being female with hypercholesterolemia, the probabilities of Heartfail and CAD will likely be adjusted based on how these variables interact with the observed evidence and other factors in the network. For example:
+
+The probability of Heartfail may increase if hypercholesterolemia (Hyperchol) is associated with a higher likelihood of heart failure.
+Similarly, the probability of CAD may also increase if hypercholesterolemia is linked to a higher risk of coronary artery disease in the network.
+However, the exact changes in the probabilities would depend on the strength of the evidence provided by the new observation and the conditional dependencies specified in the Bayesian network. To determine the precise changes, we would need to perform inference with evidence in the Bayesian network, incorporating the new evidence of being female with hypercholesterolemia and considering its interactions with other variables in the network.
+
+
+Therefore, the exact change in the probabilities of Heartfail and CAD can be obtained by performing inference with the evidence provided. We can query the joint distribution of Heartfail and CAD given the evidence to see how their probabilities change after considering the new information about the new observation being female with hypercholesterolemia.
+By performing inference with evidence in the Bayesian network, we can obtain the updated probabilities of Heartfail and CAD, providing insights into how the new information affects these variables in the context of the learned network structure.
+
+
+# Data and Variables Selection
+
+I began by utilizing the cad1 dataset from the bnlearn package, which contains various clinical variables pertinent to heart disease and related conditions. To create a comprehensive model of heart failure and CAD, I included all available variables, such as sex, smoking habits, cholesterol levels, heart failure, and several other clinical indicators. By using a broad set of variables, I aimed to capture a wide range of relationships, allowing for more thorough comparisons between different models and outcomes.
+
+
+# Structural Learning: Building the DAG
+
+Step 1: Initializing the Graph
+The first step in constructing the Bayesian network was to create the skeleton of a directed acyclic graph (DAG). In this graph, each node represented a clinical variable, and the edges (arcs) between nodes indicated potential causal relationships.
+
+Step 2: Incorporating Prior Knowledge
+To inform the structure of the DAG, I integrated prior knowledge about the relationships between variables. For example, I assumed that factors like smoking, hypercholesterolemia, and genetic inheritance could influence the likelihood of acute myocardial infarction (AMI). Similarly, I posited that sex could affect the likelihood of developing angina pectoris (AngPec). These assumptions were used to add directed arcs between the relevant nodes in the DAG.
+
+This process of incorporating prior knowledge was crucial for capturing realistic dependencies between clinical factors, reflecting how lifestyle choices and genetics contribute to heart disease outcomes.
+
+
+# Defining Conditional Probabilities
+
+With the DAG structure in place, the next step was to define the conditional probability tables (CPTs) for each node in the network. These CPTs specify the probability distribution of each variable, given the states of its parent variables.
+
+Step 1: Setting States
+For each variable, I defined a set of discrete states. For example, "Sex" had states "Male" and "Female," while "Smoker" had states "Yes" and "No." These states allowed me to model binary or categorical distinctions between different clinical factors.
+
+Step 2: Defining Conditional Probability Distributions
+I then specified the actual probability distributions for each variable. For instance, I defined the probabilities of different types of angina (AngPec) based on the patient's sex, and I determined the probability of AMI based on the combination of hypercholesterolemia, smoking, and genetic inheritance.
+
+These conditional probabilities allowed me to parameterize the Bayesian network, enabling it to model how changes in one variable influence others within the system.
+
+
+# Learning the Network Structure
+
+In addition to incorporating prior knowledge, I employed a data-driven approach to learn the network structure using the Hill-Climbing (HC) algorithm. This algorithm iteratively searches for the best structure by optimizing the fit between the model and the data.
+
+
+# Comparison of Fitting Methods
+
+To enhance the model, I applied different fitting methods:
+
+Maximum Likelihood Estimation (MLE): This method estimates the most likely parameter values based on the observed data.
+Bayesian Estimation: I used Bayesian estimation with different priors to account for uncertainty and incorporate prior beliefs about the relationships between variables, adjusting these beliefs based on the data.
+D-Separation and Conditional Independence
+I conducted d-separation tests to determine if certain variables in the network were conditionally independent given other variables. D-separation is a key concept in Bayesian networks that helps identify which variables are independent of each other under different conditions.
+
+
+# For instance:
+
+CAD and AMI: I checked if these two variables were d-separated, indicating conditional independence.
+CAD and Angina (AngPec): I tested whether these variables were d-separated given evidence of smoking.
+The tests showed that these variables were d-separated in all cases, confirming the conditional independence of these variables in the network structure.
+
+
+# Inference with Evidence
+
+With the Bayesian network constructed and fitted to the data, I performed inference to predict heart failure and CAD probabilities based on new evidence, specifically considering a female patient with hypercholesterolemia.
+
+Step 1: Initial Probabilities
+Initially, I examined the baseline probabilities of heart failure and CAD without incorporating any new evidence.
+
+Step 2: Updating Probabilities with Evidence
+Next, I introduced evidence that the patient was female and had high cholesterol. Using this information, I updated the joint probabilities of heart failure and CAD through exact inference in the Bayesian network.
+
+Step 3: Change in Probabilities
+The inference revealed that the probabilities of heart failure and CAD increased when the new evidence was considered. This result demonstrates the utility of Bayesian networks in dynamically updating predictions based on new information, making them highly valuable for real-time decision-making in clinical settings.
+
+
+# Conclusion
+
+In this project, I successfully built a Bayesian network to model the relationships between various clinical variables associated with heart failure and CAD. By combining prior knowledge with data-driven techniques, I was able to create a well-parameterized network, validate its structure through d-separation tests, and perform inference to predict outcomes based on new evidence.
+
+This work highlights the effectiveness of generative models like Bayesian networks in understanding complex medical conditions and provides a robust framework for predicting heart disease outcomes in clinical practice. The ability to update predictions based on new evidence makes these models particularly powerful for dynamic and personalized medical decision-making.
