@@ -1,7 +1,6 @@
 # 🌟 **Generative Modelling to Predict Heart Failure** 🌟
 
-[![Project Repository](https://img.shields.io/badge/🔗-Visit%20Repository-blue)](your_repository_link_here)
-[![Download Data](https://img.shields.io/badge/💾-Download%20Dataset-green)](your_data_source_link_here)
+[![Project Repository](https://img.shields.io/badge/🔗-Visit%20Repository-blue)]([your_repository_link_here](https://github.com/devarchanadev/Generative-Modelling-to-predict-Heart-Failure))
 
 Welcome to the project **Generative Modelling to Predict Heart Failure**! In this project, we build and analyze a Bayesian Network to model relationships between clinical variables and predict the likelihood of heart failure.
 
